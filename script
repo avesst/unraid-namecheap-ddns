@@ -7,6 +7,7 @@ hosts_updated=""
 hosts_unchanged=""
 hosts_errors=""
 
+# Fetch your WAN IP address
 new_ip=$(curl -s http://dynamicdns.park-your-domain.com/getip)
 
 for host in ${hosts[*]}
@@ -17,16 +18,18 @@ do
                 fulldomain=$host.$domain
         fi
 
+        # Check if the A record is the same as your current WAN IP, if it is just continue with the next host
         current_ip=$(dig $fulldomain @8.8.8.8 +short)
-
         if [[ $new_ip == $current_ip ]]; then
-                hosts_unchanged+="${fulldomain} "
+                hosts_unchanged+="${fulldomain}\n"
                 continue
         fi
 
+        # Send CURL and store the response
         response=$(curl -s "https://dynamicdns.park-your-domain.com/update?host=$host&domain=$domain&password=$password&ip=$new_ip")
+        
+        # Check if there's errors in the response
         regex="<ErrCount>([0-1])<\/ErrCount>"
-
         if [[ $response =~ $regex ]]; then
                 if [[ ${BASH_REMATCH[1]} == "0" ]]; then
                         hosts_updated+="${fulldomain}\n"
@@ -37,11 +40,12 @@ do
         fi
 done
 
-if [[ ! -z "$hosts_unchanged" ]]; then
-		#echo "The following was not updated"
-        #echo -e $hosts_unchanged
+# If any hosts have been updated, send an Unraid notification. If no hosts have been updated, the script exits silently.
+if [[ ! -z "$hosts_updated" ]]; then
+	/usr/local/emhttp/webGui/scripts/notify -e "DDNS Namecheap" -s "DNS Updated: ${new_ip}" -m "The following hosts just had their DNS updated with IP ${new_ip}:\n\n${hosts_updated}"
 fi
 
-if [[ ! -z "$hosts_updated" ]]; then
-		/usr/local/emhttp/webGui/scripts/notify -e "DDNS Namecheap" -s "DNS Updated: ${new_ip}" -m "The following hosts have just had their DNS records updated.\nNew IP: ${new_ip}\n\n${hosts_updated}"
+if [[ ! -z "$hosts_unchanged" ]]; then
+        #echo "The following was not updated"
+        #echo -e $hosts_unchanged
 fi
