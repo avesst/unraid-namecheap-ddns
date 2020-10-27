@@ -1,0 +1,47 @@
+#!/bin/bash
+hosts=( "@" "subdomain1" "subdomain2" "subdomain3" )
+domain="domain.com"
+password="your-dns-password"
+
+hosts_updated=""
+hosts_unchanged=""
+hosts_errors=""
+
+new_ip=$(curl -s http://dynamicdns.park-your-domain.com/getip)
+
+for host in ${hosts[*]}
+do
+        if [[ $host == "@" ]]; then
+                fulldomain=$domain
+        elif [[ $host != "@" ]]; then
+                fulldomain=$host.$domain
+        fi
+
+        current_ip=$(dig $fulldomain @8.8.8.8 +short)
+
+        if [[ $new_ip == $current_ip ]]; then
+                hosts_unchanged+="${fulldomain} "
+                continue
+        fi
+
+        response=$(curl -s "https://dynamicdns.park-your-domain.com/update?host=$host&domain=$domain&password=$password&ip=$new_ip")
+        regex="<ErrCount>([0-1])<\/ErrCount>"
+
+        if [[ $response =~ $regex ]]; then
+                if [[ ${BASH_REMATCH[1]} == "0" ]]; then
+                        hosts_updated+="${fulldomain}\n"
+
+                elif [[ ${BASH_REMATCH[1]} == "1" ]]; then
+                        echo -e "ERROR!\n\n$response"
+                fi
+        fi
+done
+
+if [[ ! -z "$hosts_unchanged" ]]; then
+		#echo "The following was not updated"
+        #echo -e $hosts_unchanged
+fi
+
+if [[ ! -z "$hosts_updated" ]]; then
+		/usr/local/emhttp/webGui/scripts/notify -e "DDNS Namecheap" -s "DNS Updated: ${new_ip}" -m "The following hosts have just had their DNS records updated.\nNew IP: ${new_ip}\n\n${hosts_updated}"
+fi
