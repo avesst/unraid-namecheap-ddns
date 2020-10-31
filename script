@@ -20,7 +20,7 @@ do
         fi
 
         # Check if the A record is the same as your current WAN IP, if it is just continue with the next host
-        current_ip=$(dig $fulldomain @8.8.8.8 +short)
+        current_ip=$(nslookup $fulldomain | grep -i address* | tail -n 1 | sed 's/Address.*: //')
         if [[ $new_ip == $current_ip ]]; then
                 hosts_unchanged+="${fulldomain}\n"
                 continue
